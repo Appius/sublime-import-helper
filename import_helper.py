@@ -158,6 +158,7 @@ class UpdateSourceEventListener(sublime_plugin.EventListener):
     
     def __init__(self):
         self.viewIds = []
+        self.previous_command = None
 
     def on_new(self, view):
         self.viewIds.append(view.id())
@@ -166,6 +167,33 @@ class UpdateSourceEventListener(sublime_plugin.EventListener):
         if view.id() in self.viewIds:
             self.viewIds.remove(view.id())
             update_source_modules()
+
+    def on_query_completions(self, view, prefix, locations):
+        print(locations)
+        result = []
+        prefix = prefix.lower()
+        for item in source_modules + node_modules:
+            name = item.get('name')
+            if name.lower().find(prefix) != -1 and len([x for x in result if x[1] == name]) == 0:
+                result.append([name + '\tImportHelper', name]);
+        return (result, 0)
+
+    def on_post_text_command(self, view, command_name, args):
+        self.previous_command = command_name
+        if command_name in ('commit_completion', 'insert_best_completion'):
+            self.auto_complete_committed(view)
+    
+    def on_modified_async(self, view):
+        if self.previous_command == 'auto_complete':
+            self.auto_complete_committed(view)
+        self.previous_command = None
+
+    def auto_complete_committed(self, view):
+        selected_item = view.substr(view.word(view.sel()[0]))
+        for item in source_modules + node_modules:
+            name = item.get('name')
+            if (name.find(selected_item) != -1):
+                view.run_command('insert_import', args=({'selected': selected_item}))
 
 # view.run_command('test')
 # class TestCommand(sublime_plugin.TextCommand):
